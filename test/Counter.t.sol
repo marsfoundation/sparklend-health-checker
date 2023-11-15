@@ -3,23 +3,18 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import { Counter } from "../src/Counter.sol";
+import { SparkLendHealthChecker } from "../src/SparkLendHealthChecker.sol";
 
-contract CounterTest is Test {
-    Counter public counter;
+contract SparkLendHealthCheckerTest is Test {
+
+    SparkLendHealthChecker public healthChecker;
 
     function setUp() public {
-        counter = new Counter();
-        counter.setNumber(0);
+        healthChecker = new SparkLendHealthChecker();
     }
 
-    function test_Increment() public {
-        counter.increment();
-        assertEq(counter.number(), 1);
+    function test_runChecks() public {
+        assertEq(healthChecker.runChecks(), true);
     }
 
-    function testFuzz_SetNumber(uint256 x) public {
-        counter.setNumber(x);
-        assertEq(counter.number(), x);
-    }
 }
