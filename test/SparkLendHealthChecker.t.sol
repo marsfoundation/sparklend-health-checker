@@ -16,7 +16,7 @@ contract SparkLendHealthCheckerTest is Test {
         healthChecker = new SparkLendHealthChecker();
     }
 
-    function test_runChecks() public {
+    function test_checkUserHealth() public {
         (
             uint256 totalCollateralBase,
             uint256 totalDebtBase,
@@ -37,7 +37,10 @@ contract SparkLendHealthCheckerTest is Test {
         console.log("healthFactor:                %s", healthFactor);
         console.log("belowLtv:                    %s", belowLtv);
         console.log("belowLiquidationThreshold:   %s", belowLiquidationThreshold);
+    }
 
+    function test_check1() public {
+        healthChecker.check1();
     }
 
 }
