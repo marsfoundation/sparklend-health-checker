@@ -11,6 +11,8 @@ contract SparkLendHealthCheckerTest is Test {
 
     address constant WHALE = 0xf8dE75c7B95edB6f1E639751318f117663021Cf0;
 
+    address constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
+
     function setUp() public {
         vm.createSelectFork(getChain('mainnet').rpcUrl, 18613327);
         healthChecker = new SparkLendHealthChecker();
@@ -37,6 +39,20 @@ contract SparkLendHealthCheckerTest is Test {
         console.log("healthFactor:                %s", healthFactor);
         console.log("belowLtv:                    %s", belowLtv);
         console.log("belowLiquidationThreshold:   %s", belowLiquidationThreshold);
+    }
+
+    function test_outputToFile() public {
+        vm.writeLine("output2.csv", "blockNumber,diff");
+        for (uint256 blockNumber = 18_150_000; blockNumber < 18_160_000; blockNumber += 500) {
+            vm.createSelectFork(getChain('mainnet').rpcUrl, blockNumber);
+            healthChecker = new SparkLendHealthChecker();
+            console2.log("---- blockNumber: %s ----", blockNumber);
+            uint256 diff = healthChecker.checkReserveInvariants(DAI);
+            vm.writeLine(
+                "output2.csv",
+                string.concat(vm.toString(blockNumber), ",", vm.toString(diff / 1e18))
+            );
+        }
     }
 
     function test_check1() public {

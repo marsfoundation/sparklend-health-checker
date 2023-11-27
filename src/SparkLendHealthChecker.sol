@@ -5,16 +5,17 @@ import "forge-std/Test.sol";
 
 import { IERC20 } from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 
+import { IAToken }           from "lib/aave-v3-core/contracts/interfaces/IAToken.sol";
 import { IPoolDataProvider } from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
 import { IPool }             from "lib/aave-v3-core/contracts/interfaces/IPool.sol";
 
 contract SparkLendHealthChecker {
 
-    // address constant DATA_PROVIDER = 0xFc21d6d146E6086B8359705C8b28512a983db0cb;
-    // address constant POOL          = 0xC13e21B648A5Ee794902342038FF3aDAB66BE987;
+    address constant DATA_PROVIDER = 0xFc21d6d146E6086B8359705C8b28512a983db0cb;
+    address constant POOL          = 0xC13e21B648A5Ee794902342038FF3aDAB66BE987;
 
-    address constant DATA_PROVIDER = 0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3;
-    address constant POOL          = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+    // address constant DATA_PROVIDER = 0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3;
+    // address constant POOL          = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
 
     IPool             pool         = IPool(POOL);
     IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
@@ -36,27 +37,26 @@ contract SparkLendHealthChecker {
         }
     }
 
-    function checkReserveInvariants(address asset) public view {
-        ( uint256 unbacked, uint256 accruedToTreasuryScaled,,,,,,,,,, )
+    function checkReserveInvariants(address asset) public view returns (uint256 diff) {
+        ( , uint256 accruedToTreasuryScaled,,,,,,,,,, )
             = dataProvider.getReserveData(asset);
 
         ( address aToken,, ) = dataProvider.getReserveTokensAddresses(asset);
 
-        uint256 totalDebt      = dataProvider.getTotalDebt(asset);
-        uint256 totalLiquidity = IERC20(asset).balanceOf(aToken);
+        uint256 totalDebt         = dataProvider.getTotalDebt(asset);
+        uint256 totalLiquidity    = IERC20(asset).balanceOf(aToken);
+        uint256 scaledLiabilities = IAToken(aToken).scaledTotalSupply() + accruedToTreasuryScaled;
 
         uint256 assets      = totalLiquidity + totalDebt;
-        uint256 liabilities = IERC20(aToken).totalSupply() + accruedToTreasuryScaled;
+        uint256 liabilities = scaledLiabilities * pool.getReserveNormalizedIncome(asset) / 1e27;
 
-        console2.log("totalSupply:               %s", IERC20(aToken).totalSupply());
-        console2.log("unbacked                   %s", unbacked);
         console2.log("assets:                    %s", assets);
         console2.log("liabilities:               %s", liabilities);
         console2.log("assets - liabilities:      %s", assets - liabilities);
 
-        uint256 diff = (assets - liabilities) * 1e18 / 10 ** IERC20(asset).decimals();
+        diff = (assets - liabilities) * 1e18 / 10 ** IERC20(asset).decimals();
 
-        console2.log("diff:                      %s", diff * 10_000 / 1e18);
+        console2.log("diff:                      %s", diff * 10000 / 1e18);
 
         console2.log("----------------------------------------");
     }
