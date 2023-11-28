@@ -11,33 +11,45 @@ import { IPool }             from "lib/aave-v3-core/contracts/interfaces/IPool.s
 
 contract SparkLendHealthChecker {
 
-    address constant DATA_PROVIDER = 0xFc21d6d146E6086B8359705C8b28512a983db0cb;
-    address constant POOL          = 0xC13e21B648A5Ee794902342038FF3aDAB66BE987;
+    IPool             pool;
+    IPoolDataProvider dataProvider;
 
-    // address constant DATA_PROVIDER = 0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3;
-    // address constant POOL          = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+    struct ReserveAssetLiability {
+        address reserve;
+        uint256 assets;
+        uint256 liabilities;
+    }
 
-    IPool             pool         = IPool(POOL);
-    IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
+    constructor(address pool_, address dataProvider_) {
+        pool         = IPool(pool_);
+        dataProvider = IPoolDataProvider(dataProvider_);
+    }
 
-    function runChecks() public view returns (bool) {
+    function runChecks() public pure returns (bool) {
         return true;
     }
 
-    function check1() external view returns (bool) {
+    // NOTE: All diffs are expressed as 1e18 precision.
+    function getAllReservesAssetLiability()
+        public view returns (ReserveAssetLiability[] memory diffs)
+    {
         IPoolDataProvider.TokenData[] memory tokenData = dataProvider.getAllReservesTokens();
 
-        console2.log("tokenData.length: %s", tokenData.length);
+        diffs = new ReserveAssetLiability[](tokenData.length);
 
         for (uint256 i = 0; i < tokenData.length; i++) {
-            console2.log("i", i);
-            console2.log("----------------------------------------");
-            console2.log("token:                     %s", tokenData[i].symbol);
-            checkReserveInvariants(tokenData[i].tokenAddress);
+            address reserve = tokenData[i].tokenAddress;
+
+            ( uint256 assets, uint256 liabilities ) = getReserveAssetLiability(reserve);
+
+            diffs[i] = ReserveAssetLiability(reserve, assets, liabilities);
         }
     }
 
-    function checkReserveInvariants(address asset) public view returns (uint256 diff) {
+    // NOTE: All diffs are expressed as 1e18 precision.
+    function getReserveAssetLiability(address asset)
+        public view returns (uint256 assets, uint256 liabilities)
+    {
         ( , uint256 accruedToTreasuryScaled,,,,,,,,,, )
             = dataProvider.getReserveData(asset);
 
@@ -47,24 +59,19 @@ contract SparkLendHealthChecker {
         uint256 totalLiquidity    = IERC20(asset).balanceOf(aToken);
         uint256 scaledLiabilities = IAToken(aToken).scaledTotalSupply() + accruedToTreasuryScaled;
 
-        uint256 assets      = totalLiquidity + totalDebt;
-        uint256 liabilities = scaledLiabilities * pool.getReserveNormalizedIncome(asset) / 1e27;
+        assets      = totalLiquidity + totalDebt;
+        liabilities = scaledLiabilities * pool.getReserveNormalizedIncome(asset) / 1e27;
 
-        console2.log("assets:                    %s", assets);
-        console2.log("liabilities:               %s", liabilities);
-        console2.log("assets - liabilities:      %s", assets - liabilities);
+        uint256 precision = 10 ** IERC20(asset).decimals();
 
-        diff = (assets - liabilities) * 1e18 / 10 ** IERC20(asset).decimals();
-
-        console2.log("diff:                      %s", diff * 10000 / 1e18);
-
-        console2.log("----------------------------------------");
+        assets      = assets      * 1e18 / precision;
+        liabilities = liabilities * 1e18 / precision;
     }
 
 
     // TODO: Investigate if oracles should be a concern here since they are being used to calculate
     //       the base values.
-    function checkUserHealth(address user)
+    function getUserHealth(address user)
         public view returns (
             uint256 totalCollateralBase,
             uint256 totalDebtBase,
@@ -72,7 +79,6 @@ contract SparkLendHealthChecker {
             uint256 currentLiquidationThreshold,
             uint256 ltv,
             uint256 healthFactor,
-            bool belowLtv,
             bool belowLiquidationThreshold
         )
     {
@@ -85,9 +91,7 @@ contract SparkLendHealthChecker {
             healthFactor
         ) = pool.getUserAccountData(user);
 
-        belowLtv = healthFactor < _bpsToWad(ltv);
-
-        belowLiquidationThreshold = healthFactor < _bpsToWad(currentLiquidationThreshold);
+        belowLiquidationThreshold = healthFactor < 1e18;
     }
 
     function _toWad(address asset, uint256 amount) internal view returns (uint256) {
