@@ -3,8 +3,10 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 
-import { IERC20 } from "lib/erc20-helpers/src/interfaces/IERC20.sol";
+import { IERC20 }    from "lib/erc20-helpers/src/interfaces/IERC20.sol";
+import { SafeERC20 } from "lib/erc20-helpers/src/SafeERC20.sol";
 
+import { IPoolDataProvider }  from "lib/aave-v3-core/contracts/interfaces/IPoolDataProvider.sol";
 import { IPool }              from "lib/aave-v3-core/contracts/interfaces/IPool.sol";
 import { IPriceOracleGetter } from "lib/aave-v3-core/contracts/interfaces/IPriceOracleGetter.sol";
 import { IVariableDebtToken } from "lib/aave-v3-core/contracts/interfaces/IVariableDebtToken.sol";
@@ -25,7 +27,8 @@ contract SparkLendHealthCheckerTestBase is Test {
     address constant WETH_A_TOKEN    = 0x59cD1C87501baa753d0B5B5Ab5D8416A45cD71DB;
     address constant WETH_DEBT_TOKEN = 0x2e7576042566f8D6990e07A1B61Ad1efd86Ae70d;
 
-    IPool pool = IPool(POOL);
+    IPool             pool         = IPool(POOL);
+    IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
     function setUp() public {
         vm.createSelectFork(getChain('mainnet').rpcUrl, 18613327);
@@ -168,7 +171,7 @@ contract GetReserveAssetLiabilityTests is SparkLendHealthCheckerTestBase {
 
         // Simulate bug/exploit draining WETH from aToken
         vm.startPrank(WETH_A_TOKEN);
-        IERC20(WETH).transfer(address(0), 10_000 ether);
+        IERC20(WETH).transfer(makeAddr("hacker"), 10_000 ether);
 
         ( assets, liabilities ) = healthChecker.getReserveAssetLiability(WETH);
 
@@ -204,6 +207,65 @@ contract GetReserveAssetLiabilityTests is SparkLendHealthCheckerTestBase {
         assertGt(assets, liabilities);
 
         assertEq(assets - liabilities, 100_000 ether + 0.017304650572271473 ether);
+    }
+
+}
+
+contract GetAllReservesAssetLiabilityTests is SparkLendHealthCheckerTestBase {
+
+    using SafeERC20 for IERC20;
+
+    function _drainAssets(address asset) internal {
+        ( address aToken,, ) = dataProvider.getReserveTokensAddresses(asset);
+
+        // Simulate bug/exploit draining asset from aToken
+        vm.startPrank(aToken);
+        IERC20(asset).safeTransfer(makeAddr("hacker"), IERC20(asset).balanceOf(aToken));
+        vm.stopPrank();
+    }
+
+    function test_getAllReservesLiability() public {
+        IPoolDataProvider.TokenData[] memory tokenData = dataProvider.getAllReservesTokens();
+
+        SparkLendHealthChecker.ReserveAssetLiability[] memory diffs
+            = healthChecker.getAllReservesAssetLiability();
+
+        assertEq(tokenData.length, diffs.length);
+
+        for (uint256 i = 0; i < tokenData.length; i++) {
+            address reserve = tokenData[i].tokenAddress;
+
+            ( uint256 assets, uint256 liabilities )
+                = healthChecker.getReserveAssetLiability(reserve);
+
+            assertEq(diffs[i].reserve,     reserve);
+            assertEq(diffs[i].assets,      assets);
+            assertEq(diffs[i].liabilities, liabilities);
+
+            assertGe(assets, liabilities);
+        }
+
+        for (uint256 i = 0; i < tokenData.length; i++) {
+            _drainAssets(tokenData[i].tokenAddress);
+        }
+
+        diffs = healthChecker.getAllReservesAssetLiability();
+
+        for (uint256 i = 0; i < tokenData.length; i++) {
+            address reserve = tokenData[i].tokenAddress;
+
+            ( uint256 assets, uint256 liabilities )
+                = healthChecker.getReserveAssetLiability(reserve);
+
+            assertEq(diffs[i].reserve,     reserve);
+            assertEq(diffs[i].assets,      assets);
+            assertEq(diffs[i].liabilities, liabilities);
+
+            // Don't check LT if market is empty
+            if (liabilities == 0) continue;
+
+            assertLt(assets, liabilities);
+        }
     }
 
 }
