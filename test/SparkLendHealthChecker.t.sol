@@ -227,10 +227,10 @@ contract GetAllReservesAssetLiabilityTests is SparkLendHealthCheckerTestBase {
     function test_getAllReservesLiability() public {
         IPoolDataProvider.TokenData[] memory tokenData = dataProvider.getAllReservesTokens();
 
-        SparkLendHealthChecker.ReserveAssetLiability[] memory diffs
+        SparkLendHealthChecker.ReserveAssetLiability[] memory reserveData
             = healthChecker.getAllReservesAssetLiability();
 
-        assertEq(tokenData.length, diffs.length);
+        assertEq(tokenData.length, reserveData.length);
 
         for (uint256 i = 0; i < tokenData.length; i++) {
             address reserve = tokenData[i].tokenAddress;
@@ -238,9 +238,9 @@ contract GetAllReservesAssetLiabilityTests is SparkLendHealthCheckerTestBase {
             ( uint256 assets, uint256 liabilities )
                 = healthChecker.getReserveAssetLiability(reserve);
 
-            assertEq(diffs[i].reserve,     reserve);
-            assertEq(diffs[i].assets,      assets);
-            assertEq(diffs[i].liabilities, liabilities);
+            assertEq(reserveData[i].reserve,     reserve);
+            assertEq(reserveData[i].assets,      assets);
+            assertEq(reserveData[i].liabilities, liabilities);
 
             assertGe(assets, liabilities);
         }
@@ -249,7 +249,7 @@ contract GetAllReservesAssetLiabilityTests is SparkLendHealthCheckerTestBase {
             _drainAssets(tokenData[i].tokenAddress);
         }
 
-        diffs = healthChecker.getAllReservesAssetLiability();
+        reserveData = healthChecker.getAllReservesAssetLiability();
 
         for (uint256 i = 0; i < tokenData.length; i++) {
             address reserve = tokenData[i].tokenAddress;
@@ -257,9 +257,9 @@ contract GetAllReservesAssetLiabilityTests is SparkLendHealthCheckerTestBase {
             ( uint256 assets, uint256 liabilities )
                 = healthChecker.getReserveAssetLiability(reserve);
 
-            assertEq(diffs[i].reserve,     reserve);
-            assertEq(diffs[i].assets,      assets);
-            assertEq(diffs[i].liabilities, liabilities);
+            assertEq(reserveData[i].reserve,     reserve);
+            assertEq(reserveData[i].assets,      assets);
+            assertEq(reserveData[i].liabilities, liabilities);
 
             // Don't check LT if market is empty
             if (liabilities == 0) continue;

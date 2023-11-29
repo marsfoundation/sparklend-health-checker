@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 pragma solidity ^0.8.13;
 
-import "forge-std/Test.sol";
-
 import { IERC20 } from "lib/erc20-helpers/src/interfaces/IERC20.sol";
 
 import { IAToken }           from "lib/aave-v3-core/contracts/interfaces/IAToken.sol";
@@ -31,18 +29,19 @@ contract SparkLendHealthChecker {
 
     // NOTE: All diffs are expressed as 1e18 precision.
     function getAllReservesAssetLiability()
-        public view returns (ReserveAssetLiability[] memory diffs)
+        public view returns (ReserveAssetLiability[] memory reserveData)
     {
         IPoolDataProvider.TokenData[] memory tokenData = dataProvider.getAllReservesTokens();
 
-        diffs = new ReserveAssetLiability[](tokenData.length);
+        // TODO: Update name
+        reserveData = new ReserveAssetLiability[](tokenData.length);
 
         for (uint256 i = 0; i < tokenData.length; i++) {
             address reserve = tokenData[i].tokenAddress;
 
             ( uint256 assets, uint256 liabilities ) = getReserveAssetLiability(reserve);
 
-            diffs[i] = ReserveAssetLiability(reserve, assets, liabilities);
+            reserveData[i] = ReserveAssetLiability(reserve, assets, liabilities);
         }
     }
 
@@ -68,7 +67,6 @@ contract SparkLendHealthChecker {
         liabilities = liabilities * 1e18 / precision;
     }
 
-
     // TODO: Investigate if oracles should be a concern here since they are being used to calculate
     //       the base values.
     function getUserHealth(address user)
@@ -92,14 +90,6 @@ contract SparkLendHealthChecker {
         ) = pool.getUserAccountData(user);
 
         belowLiquidationThreshold = healthFactor < 1e18;
-    }
-
-    function _toWad(address asset, uint256 amount) internal view returns (uint256) {
-        return amount * 1e18 / 10 ** IERC20(asset).decimals();
-    }
-
-    function _bpsToWad(uint256 bps) internal pure returns (uint256) {
-        return bps * 1e14;
     }
 
 }
