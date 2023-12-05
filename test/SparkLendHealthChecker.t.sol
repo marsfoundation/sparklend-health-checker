@@ -31,7 +31,7 @@ contract SparkLendHealthCheckerTestBase is Test {
     IPoolDataProvider dataProvider = IPoolDataProvider(DATA_PROVIDER);
 
     function setUp() public {
-        vm.createSelectFork(getChain('mainnet').rpcUrl, 18613327);
+        vm.createSelectFork(getChain('mainnet').rpcUrl, 18_613_327);
         healthChecker = new SparkLendHealthChecker(POOL, DATA_PROVIDER);
     }
 
@@ -183,7 +183,7 @@ contract GetReserveAssetLiabilityTests is SparkLendHealthCheckerTestBase {
         assertEq(liabilities - assets, 10_000 ether - 0.017304650572271473 ether);
     }
 
-    function test_getReserveAssetLiability_increaseLiabilities() public {
+    function test_getReserveAssetLiability_badDebt() public {
         ( uint256 assets, uint256 liabilities ) = healthChecker.getReserveAssetLiability(WETH);
 
         assertEq(assets,      144_265.290042485761921174 ether);

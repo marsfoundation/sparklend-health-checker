@@ -33,7 +33,6 @@ contract SparkLendHealthChecker {
     {
         IPoolDataProvider.TokenData[] memory tokenData = dataProvider.getAllReservesTokens();
 
-        // TODO: Update name
         reserveData = new ReserveAssetLiability[](tokenData.length);
 
         for (uint256 i = 0; i < tokenData.length; i++) {
